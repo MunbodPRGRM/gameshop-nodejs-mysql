@@ -21,7 +21,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/user", user);
 app.use("/game", game);
 app.use("/upload", upload);
-app.use("/uploads", express.static("uploads"));
+// app.use("/uploads", express.static("uploads"));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 app.use("/", (req, res) => {
   res.send("Hello World!!!");
