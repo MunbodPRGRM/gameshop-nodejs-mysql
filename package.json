@@ -1,9 +1,12 @@
 {
   "name": "gameshop-nodejs-mysql",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "server.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1", 
+    "dev" : "ts-node-dev --respawn --transpile-only ./server.ts",
+    "start": "node server.js",
+    "build": "tsc"
   },
   "keywords": [],
   "author": "",
