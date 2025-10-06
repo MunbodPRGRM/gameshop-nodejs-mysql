@@ -1,30 +1,34 @@
+// src/app.ts
 import express from "express";
 import cors from "cors";
-import { router as game } from "./controller/game";
-import { router as user } from "./controller/user";
-import { router as upload } from "./controller/upload";
+import authRoutes from "./routes/auth";
+import userRoutes from "./routes/user";
+import uploadRoutes from "./routes/upload";
 import path from "path";
 
 export const app = express();
 
+// ========== Middleware ==========
 app.use(
-    cors({
-        origin: "*",
-        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization"],
-    })
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
 );
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use("/user", user);
-app.use("/game", game);
-app.use("/upload", upload);
-// app.use("/uploads", express.static("uploads"));
-// app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-app.use("/uploads", express.static(path.join(__dirname, 'uploads')));
+// ========== Routes ==========
+app.use("/auth", authRoutes);
+app.use("/user", userRoutes);
+app.use("/upload", uploadRoutes);
 
-app.use("/", (req, res) => {
-  res.send("Hello World!!!");
+// ให้สามารถเข้าถึงไฟล์อัปโหลดได้โดยตรงผ่าน URL
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// ========== Default route ==========
+app.get("/", (_req, res) => {
+  res.send("Hello GameShop API is running 🚀");
 });
