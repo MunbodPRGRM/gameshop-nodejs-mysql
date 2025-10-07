@@ -33,7 +33,7 @@ const upload = multer({
 router.get("/profile", authenticateJWT, getProfile);
 
 // อัปเดตข้อมูลโปรไฟล์ (ต้องส่ง JWT)
-router.put("/profile", authenticateJWT, upload.single("profile_image"), updateProfile);
+router.put("/update", authenticateJWT, upload.single("profile_image"), updateProfile);
 
 // ดึงข้อมูลผู้ใช้ตาม ID
 router.get("/:id", getUserById);

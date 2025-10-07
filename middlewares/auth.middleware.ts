@@ -1,8 +1,11 @@
 // src/middlewares/auth.middleware.ts
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
 
-const JWT_SECRET = "your_secret_key"; // ควรใช้ process.env.JWT_SECRET
+dotenv.config();
+
+const JWT_SECRET = process.env.JWT_SECRET!;
 
 export const authenticateJWT = (req: any, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
