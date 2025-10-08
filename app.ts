@@ -4,6 +4,7 @@ import cors from "cors";
 import authRoutes from "./routes/auth";
 import userRoutes from "./routes/user";
 import uploadRoutes from "./routes/upload";
+import gameRoutes from "./routes/game";
 import path from "path";
 
 export const app = express();
@@ -24,6 +25,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/auth", authRoutes);
 app.use("/user", userRoutes);
 app.use("/upload", uploadRoutes);
+app.use("/game", gameRoutes);
 
 // ให้สามารถเข้าถึงไฟล์อัปโหลดได้โดยตรงผ่าน URL
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
