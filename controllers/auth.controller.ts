@@ -10,7 +10,22 @@ const JWT_SECRET = process.env.JWT_SECRET!;
 //Register
 export const register = async (req: Request, res: Response) => {
   const { username, email, password } = req.body;
+
+  // ✅ ตรวจสอบค่าที่จำเป็น
+  if (!username || !email || !password) {
+    return res.status(400).json({ error: "All fields are required" });
+  }
+
   try {
+    const [existingUser]: any = await conn.query(
+      "SELECT user_id FROM Users WHERE email = ? OR username = ?",
+      [email, username]
+    );
+
+    if (existingUser.length > 0) {
+      return res.status(400).json({ error: "Email or username already exists" });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const profile_image = req.file ? req.file.filename : null;
 
@@ -19,12 +34,19 @@ export const register = async (req: Request, res: Response) => {
       [username, email, hashedPassword, profile_image]
     );
 
+    // ✅ ตอบกลับสำเร็จ
     res.status(201).json({
       message: "User created successfully",
-      userId: (result as any).insertId,
-      profile_image,
+      user: {
+        user_id: (result as any).insertId,
+        username,
+        email,
+        profile_image,
+        role: "User",
+      },
     });
   } catch (err: any) {
+    console.error("Register Error:", err.message);
     res.status(500).json({ error: err.message });
   }
 };
