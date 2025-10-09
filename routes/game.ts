@@ -1,5 +1,5 @@
 import express from 'express';
-import { addGame, updateGame, deleteGame, getAllGames, getGameById } from '../controllers/game.controller';
+import { addGame, updateGame, deleteGame, getAllGames, getGameById, getBestSellers } from '../controllers/game.controller';
 import path from 'path';
 import fs from "fs";
 import { v4 as uuidv4 } from 'uuid';
@@ -46,5 +46,8 @@ router.get('/', getAllGames);
 
 // GET /api/games/:id -> ดึงข้อมูลเกมเดียว
 router.get('/:id', getGameById);
+
+// **[ใหม่]** GET /api/games/bestsellers -> ดึงเกมขายดี 5 อันดับ
+router.get('/bestsellers', getBestSellers);
 
 export default router;

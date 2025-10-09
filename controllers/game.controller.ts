@@ -153,29 +153,60 @@ export const deleteGame = async (req: Request, res: Response) => {
   }
 };
 
-// 4. ดึงข้อมูลเกมทั้งหมด (Read All)
+// 4. ดึงข้อมูลเกมทั้งหมด (Read All) - **เวอร์ชันอัปเดต เพิ่มการค้นหา**
 export const getAllGames = async (req: Request, res: Response) => {
-  // รับค่า query parameters สำหรับ pagination, sorting, filtering
-  const page = parseInt(req.query.page as string) || 1;
-  const limit = parseInt(req.query.limit as string) || 12;
-  const offset = (page - 1) * limit;
-
   try {
-    // Query สำหรับดึงข้อมูลเกมแบบแบ่งหน้า
-    const [games] = await conn.query(
-      `SELECT g.game_id, g.game_name, g.price, g.pic_icon, gt.type_name
-       FROM Games g
-       JOIN GameType gt ON g.type_id = gt.type_id
-       ORDER BY g.release_date DESC
-       LIMIT ?
-       OFFSET ?`,
-      [limit, offset]
-    );
+    // --- รับค่า Query Parameters ---
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 12;
+    const offset = (page - 1) * limit;
 
-    // Query สำหรับนับจำนวนเกมทั้งหมดเพื่อทำ pagination
-    const [countRows] = await conn.query('SELECT COUNT(*) as totalGames FROM Games');
-    const totalGames = (countRows as any)[0]?.totalGames || 0;
+    // **[ใหม่]** รับค่าสำหรับค้นหาชื่อเกมและประเภทเกม
+    const search = req.query.search as string;
+    const gameType = req.query.gameType as string;
 
+    // --- สร้าง WHERE Clause แบบไดนามิก ---
+    const whereClauses: string[] = [];
+    const queryParams: (string | number)[] = [];
+
+    if (search) {
+      whereClauses.push("g.game_name LIKE ?");
+      queryParams.push(`%${search}%`); // ใช้ % เพื่อค้นหาคำที่อยู่ตรงกลาง
+    }
+
+    if (gameType) {
+      whereClauses.push("gt.type_name LIKE ?");
+      queryParams.push(`%${gameType}%`);
+    }
+
+    // รวม WHERE clauses ทั้งหมดเข้าด้วยกัน
+    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
+    // --- สร้าง SQL Query หลัก ---
+    const mainQuery = `
+      SELECT g.game_id, g.game_name, g.price, g.pic_icon, gt.type_name
+      FROM Games g
+      JOIN GameType gt ON g.type_id = gt.type_id
+      ${whereSql}
+      ORDER BY g.release_date DESC
+      LIMIT ?
+      OFFSET ?
+    `;
+
+    // --- สร้าง Query สำหรับนับจำนวนทั้งหมด ---
+    const countQuery = `
+      SELECT COUNT(*) as totalGames
+      FROM Games g
+      JOIN GameType gt ON g.type_id = gt.type_id
+      ${whereSql}
+    `;
+
+    // --- Execute Queries ---
+    const [games] = await conn.query(mainQuery, [...queryParams, limit, offset]);
+    const [countRows] = await conn.query(countQuery, queryParams);
+    const totalGames = Array.isArray(countRows) && countRows.length > 0 ? (countRows[0] as any).totalGames : 0;
+
+    // --- ส่ง Response กลับไป ---
     res.status(200).json({
       totalGames,
       totalPages: Math.ceil(totalGames / limit),
@@ -209,5 +240,35 @@ export const getGameById = async (req: Request, res: Response) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error fetching game details.' });
+  }
+};
+
+// **[ใหม่]** ดึงข้อมูลประเภทเกมทั้งหมด (Get All Game Types)
+export const getAllGameTypes = async (req: Request, res: Response) => {
+  try {
+    const [gameTypes] = await conn.query(
+      'SELECT * FROM GameType ORDER BY type_name ASC'
+    );
+
+    res.status(200).json(gameTypes);
+  } catch (error) {
+    console.error('Error fetching game types:', error);
+    res.status(500).json({ message: 'Error fetching game types.' });
+  }
+};
+
+// **[ใหม่]** ดึงข้อมูลเกมขายดี (Best Sellers)
+export const getBestSellers = async (req: Request, res: Response) => {
+  try {
+    const [bestSellers] = await conn.query(
+      `SELECT game_id, game_name, pic_icon, pic_portrait
+       FROM Games
+       ORDER BY sales_count DESC
+       LIMIT 5`
+    );
+    res.status(200).json(bestSellers);
+  } catch (error) {
+    console.error('Error fetching best sellers:', error);
+    res.status(500).json({ message: 'Error fetching best sellers.' });
   }
 };
