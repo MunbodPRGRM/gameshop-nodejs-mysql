@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import authRoutes from "./routes/auth";
 import userRoutes from "./routes/user";
+import adminRoutes from "./routes/admin";
 import uploadRoutes from "./routes/upload";
 import gameRoutes from "./routes/game";
 import gameTypeRoutes from "./routes/gametype";
@@ -25,6 +26,7 @@ app.use(express.urlencoded({ extended: true }));
 // ========== Routes ==========
 app.use("/auth", authRoutes);
 app.use("/user", userRoutes);
+app.use("/admin", adminRoutes);
 app.use("/upload", uploadRoutes);
 app.use("/game", gameRoutes);
 app.use("/gametypes", gameTypeRoutes);

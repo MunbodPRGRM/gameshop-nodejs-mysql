@@ -8,6 +8,10 @@ import {
   getProfile,
   updateProfile,
   getUserById,
+  getMyTransactions,
+  topUpWallet,
+  checkout,
+  buyGame,
 } from "../controllers/user.controller";
 
 export const router = express.Router();
@@ -29,13 +33,13 @@ const upload = multer({
 
 // === Routes ===
 
-// ดึงข้อมูลโปรไฟล์ (ต้องส่ง JWT)
 router.get("/profile", authenticateJWT, getProfile);
-
-// อัปเดตข้อมูลโปรไฟล์ (ต้องส่ง JWT)
 router.put("/update", authenticateJWT, upload.single("profile_image"), updateProfile);
+router.get('/transactions',authenticateJWT, getMyTransactions);
+router.post('/topup',authenticateJWT, topUpWallet);
+router.post('/checkout', authenticateJWT, checkout);
+router.post('/buy', authenticateJWT, buyGame);
 
-// ดึงข้อมูลผู้ใช้ตาม ID
 router.get("/:id", getUserById);
 
 export default router;
