@@ -32,7 +32,7 @@ app.use("/game", gameRoutes);
 app.use("/gametypes", gameTypeRoutes);
 
 // ให้สามารถเข้าถึงไฟล์อัปโหลดได้โดยตรงผ่าน URL
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // ========== Default route ==========
 app.get("/", (_req, res) => {
