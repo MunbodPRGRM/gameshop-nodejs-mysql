@@ -7,9 +7,11 @@ import adminRoutes from "./routes/admin";
 import uploadRoutes from "./routes/upload";
 import gameRoutes from "./routes/game";
 import gameTypeRoutes from "./routes/gametype";
+import discountRoutes from "./routes/discount";
 import path from "path";
 
 export const app = express();
+console.log(`--- SERVER RESTARTED AT: ${new Date().toLocaleTimeString()} ---`);
 
 // ========== Middleware ==========
 app.use(
@@ -30,6 +32,8 @@ app.use("/admin", adminRoutes);
 app.use("/upload", uploadRoutes);
 app.use("/game", gameRoutes);
 app.use("/gametypes", gameTypeRoutes);
+app.use("/discounts", discountRoutes); 
+
 
 // ให้สามารถเข้าถึงไฟล์อัปโหลดได้โดยตรงผ่าน URL
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));

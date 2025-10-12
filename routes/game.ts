@@ -1,9 +1,10 @@
 import express from 'express';
-import { addGame, updateGame, deleteGame, getAllGames, getGameById, getBestSellers } from '../controllers/game.controller';
+import { addGame, updateGame, deleteGame, getAllGames, getGameById, getBestSellers, getGameRanking } from '../controllers/game.controller';
 import path from 'path';
 import fs from "fs";
 import { v4 as uuidv4 } from 'uuid';
 import multer from 'multer';
+import { authenticateJWT } from '../middlewares/auth.middleware';
 
 export const router = express.Router();
 
@@ -38,16 +39,11 @@ router.put('/:id', upload.fields([
   updateGame
 );
 
-// DELETE /api/admin/games/:id -> ลบเกมตาม ID
-router.delete('/:id', deleteGame);
-
-// GET /api/games -> ดึงเกมทั้งหมด (มี pagination)
 router.get('/', getAllGames);
-
-// GET /api/games/:id -> ดึงข้อมูลเกมเดียว
-router.get('/:id', getGameById);
-
-// **[ใหม่]** GET /api/games/bestsellers -> ดึงเกมขายดี 5 อันดับ
+router.get('/ranking', getGameRanking);
 router.get('/bestsellers', getBestSellers);
+
+router.get('/:id', getGameById);
+router.delete('/:id', deleteGame);
 
 export default router;

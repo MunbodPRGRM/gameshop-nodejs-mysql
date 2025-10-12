@@ -184,7 +184,7 @@ export const getAllGames = async (req: Request, res: Response) => {
 
     // --- สร้าง SQL Query หลัก ---
     const mainQuery = `
-      SELECT g.game_id, g.game_name, g.price, g.pic_icon, gt.type_name
+      SELECT g.game_id, g.game_name, g.price, g.sales_count, g.pic_icon, gt.type_name
       FROM Games g
       JOIN GameType gt ON g.type_id = gt.type_id
       ${whereSql}
@@ -224,22 +224,34 @@ export const getGameById = async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const [rows] = await conn.query(
-      `SELECT g.*, gt.type_name
-       FROM Games g
-       JOIN GameType gt ON g.type_id = gt.type_id
-       WHERE g.game_id = ?`,
+      `SELECT 
+        g.*, 
+        gt.type_name,
+        r.sales_rank
+      FROM Games g
+      JOIN GameType gt ON g.type_id = gt.type_id
+      JOIN (
+        SELECT 
+          game_id, 
+          ROW_NUMBER() OVER (ORDER BY sales_count DESC, game_name ASC) as sales_rank
+        FROM Games
+      ) r ON g.game_id = r.game_id
+      WHERE g.game_id = ?`,
       [id]
     );
-    const game = Array.isArray(rows) ? rows[0] : undefined;
+    // **[แก้]** ดึง Object แรกออกจาก Array ที่ query ได้
+    const game = (rows as any[])[0];
 
-    if (!game) {
-      return res.status(404).json({ message: 'Game not found.' });
+    if (game) {
+      game.price = parseFloat(game.price); 
+      return res.status(200).json(game); // **ส่งกลับเป็น Object เดี่ยว**
+    } else {
+      return res.status(404).json({ message: 'ไม่พบข้อมูลเกม' });
     }
 
-    res.status(200).json(game);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Error fetching game details.' });
+    return res.status(500).json({ message: 'Error fetching game details.' });
   }
 };
 
@@ -257,15 +269,36 @@ export const getAllGameTypes = async (req: Request, res: Response) => {
   }
 };
 
+export const getGameRanking = async (req: Request, res: Response) => {
+  try {
+    // **[แก้]** ลบ LIMIT และ OFFSET ออก เพื่อดึงข้อมูลทั้งหมด
+    const [games] = await conn.query(
+      `SELECT game_id, game_name, pic_icon, sales_count, type_name
+       FROM Games g
+       JOIN GameType gt ON g.type_id = gt.type_id
+       ORDER BY sales_count DESC, game_name ASC`
+    );
+
+    // **[แก้]** ส่งข้อมูลกลับไปเป็น Array ของเกมโดยตรง
+    res.status(200).json(games);
+
+  } catch (error) {
+    console.error('Error fetching game ranking:', error);
+    res.status(500).json({ message: 'Error fetching game ranking.' });
+  }
+};
+
 // **[ใหม่]** ดึงข้อมูลเกมขายดี (Best Sellers)
 export const getBestSellers = async (req: Request, res: Response) => {
   try {
+    // **[แก้]** เปลี่ยนจาก pic_icon เป็น pic_portrait
     const [bestSellers] = await conn.query(
-      `SELECT game_id, game_name, pic_icon, pic_portrait
+      `SELECT game_id, game_name, pic_portrait, sales_count 
        FROM Games
        ORDER BY sales_count DESC
        LIMIT 5`
     );
+
     res.status(200).json(bestSellers);
   } catch (error) {
     console.error('Error fetching best sellers:', error);

@@ -21,10 +21,15 @@ export const getProfile = async (req: any, res: Response) => {
 };
 
 // ================== อัปเดตข้อมูลผู้ใช้ (Profile Update) ==================
-export const updateProfile = async (req: any, res: Response) => {
+export const updateProfileInfo = async (req: any, res: Response) => {
   const userId = req.user.userId;
-  const { username, old_password, new_password, confirm_password } = req.body;
+  const { username } = req.body;
   const profile_image = req.file ? req.file.filename : undefined;
+
+  // ตรวจสอบว่ามีข้อมูลส่งมาหรือไม่
+  if (!username && !profile_image) {
+    return res.status(400).json({ error: "No fields to update" });
+  }
 
   try {
     const fields: string[] = [];
@@ -34,48 +39,65 @@ export const updateProfile = async (req: any, res: Response) => {
       fields.push("username = ?");
       values.push(username);
     }
-
     if (profile_image) {
       fields.push("profile_image = ?");
       values.push(profile_image);
     }
 
-    // ถ้ามีการเปลี่ยนรหัสผ่าน
-    if (old_password || new_password || confirm_password) {
-      if (!old_password || !new_password || !confirm_password)
-        return res
-          .status(400)
-          .json({ error: "All password fields are required" });
+    values.push(userId);
+    
+    // **สำคัญ:** ดึงผลลัพธ์จากการ query มาตรวจสอบ
+    const [result] = await conn.query(
+      `UPDATE Users SET ${fields.join(", ")} WHERE user_id = ?`, 
+      values
+    );
 
-      const [rows]: any = await conn.query(
-        "SELECT password FROM Users WHERE user_id = ?",
-        [userId]
-      );
-      const user = rows[0];
-
-      const isMatch = await bcrypt.compare(old_password, user.password);
-      if (!isMatch)
-        return res.status(401).json({ error: "Old password is incorrect" });
-
-      if (new_password !== confirm_password)
-        return res
-          .status(400)
-          .json({ error: "New password and confirm password do not match" });
-
-      const hashed = await bcrypt.hash(new_password, 10);
-      fields.push("password = ?");
-      values.push(hashed);
+    // **สำคัญ:** ตรวจสอบว่ามีการอัปเดตเกิดขึ้นจริง
+    if ((result as any).affectedRows === 0) {
+      return res.status(404).json({ error: "User not found or no new data to update" });
     }
 
-    if (fields.length === 0)
-      return res.status(400).json({ error: "No fields to update" });
+    res.json({ message: "Profile updated successfully" });
 
-    values.push(userId);
-    await conn.query(`UPDATE Users SET ${fields.join(", ")} WHERE user_id = ?`, values);
-
-    res.json({ message: "User updated successfully", profile_image, username });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+export const changePassword = async (req: Request, res: Response) => {
+  const userId = (req as any).user.userId;
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ message: 'กรุณากรอกรหัสผ่านให้ครบถ้วน' });
+  }
+
+  try {
+    // 1. ดึงรหัสผ่านที่ hash ไว้ใน DB ของผู้ใช้ปัจจุบัน
+    const [rows]: any = await conn.query('SELECT password FROM Users WHERE user_id = ?', [userId]);
+    const user = rows[0];
+
+    if (!user) {
+      return res.status(404).json({ message: 'ไม่พบผู้ใช้' });
+    }
+
+    // 2. เปรียบเทียบรหัสผ่านปัจจุบันที่ผู้ใช้กรอก กับ hash ใน DB
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'รหัสผ่านเดิมไม่ถูกต้อง' });
+    }
+
+    // 3. Hash รหัสผ่านใหม่
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+    // 4. อัปเดตรหัสผ่านใหม่ลงใน DB
+    await conn.query('UPDATE Users SET password = ? WHERE user_id = ?', [hashedNewPassword, userId]);
+
+    res.status(200).json({ message: 'เปลี่ยนรหัสผ่านสำเร็จ' });
+
+  } catch (error) {
+    console.error('Error changing password:', error);
+    res.status(500).json({ message: 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน' });
   }
 };
 
@@ -270,7 +292,7 @@ export const buyGame = async (req: Request, res: Response) => {
 
 export const checkout = async (req: Request, res: Response) => {
   const userId = (req as any).user.userId;
-  const { gameIds, codeId } = req.body;
+  const { gameIds, codeId } = req.body; // รับ Array ของ game_id
 
   if (!gameIds || !Array.isArray(gameIds) || gameIds.length === 0) {
     return res.status(400).json({ message: 'No games to purchase.' });
@@ -280,58 +302,102 @@ export const checkout = async (req: Request, res: Response) => {
   try {
     await connection.beginTransaction();
 
-    // 1. ดึงข้อมูลเกมและราคาทั้งหมด + ยอดเงินผู้ใช้ (ล็อคแถวข้อมูล user เพื่อป้องกันการอัปเดตพร้อมกัน)
+    const [ownedGames] = await connection.query('SELECT game_id FROM UserLibrary WHERE user_id = ? AND game_id IN (?)', [userId, gameIds]);
+    if ((ownedGames as any[]).length > 0) {
+      // คืน Connection ก่อนส่ง Error
+      connection.release(); 
+      return res.status(400).json({ message: 'คุณมีบางเกมในตะกร้าอยู่ในคลังแล้ว' });
+    }
+
+    // 1. ดึงข้อมูลและล็อคแถว User เพื่อป้องกัน Race Condition
     const [userRows]: any = await connection.query('SELECT wallet_balance FROM Users WHERE user_id = ? FOR UPDATE', [userId]);
     const user = userRows[0];
-    const [games] = await connection.query('SELECT game_id, price FROM Games WHERE game_id IN (?)', [gameIds]);
+    const [games] = await connection.query('SELECT game_id, game_name, price FROM Games WHERE game_id IN (?)', [gameIds]);
     
-    // 2. คำนวณราคารวมจากฝั่งเซิร์ฟเวอร์ (ห้ามเชื่อราคาจาก Client)
-    const subTotal = (games as any[]).reduce((sum, game) => sum + game.price, 0);
+    console.log('Games from DB:', games);
+
+    // 2. คำนวณราคารวมจากฝั่งเซิร์ฟเวอร์เสมอ
+    // **[แก้]** ทำให้ reduce() ปลอดภัยจากค่า null หรือ undefined
+    const subTotal = (games as any[]).reduce((sum, game) => {
+      const price = parseFloat(game.price);
+      // ถ้า price ไม่ใช่ตัวเลข (เป็น NaN) ให้บวกด้วย 0 แทน
+      return sum + (isNaN(price) ? 0 : price);
+    }, 0); // 0 คือค่าเริ่มต้นของ sum
+
     let discountAmount = 0;
     let finalTotal = subTotal;
-    
-    // **[ใหม่]** Logic การคำนวณส่วนลด
+
+    // ตรวจสอบและคำนวณส่วนลด (ถ้ามี codeId ส่งมา)
     if (codeId) {
+      // ดึงข้อมูลโค้ดเพื่อคำนวณส่วนลด (ควรมีการ re-validate อีกครั้งเพื่อความปลอดภัยสูงสุด)
       const [discountRows]: any = await connection.query('SELECT * FROM DiscountCodes WHERE code_id = ?', [codeId]);
       const discount = discountRows[0];
-      // (ควรมีการตรวจสอบโค้ดอีกครั้งที่นี่เพื่อความปลอดภัยสูงสุด)
+      
       if (discount) {
         if (discount.discount_type === 'percent') {
-          discountAmount = (subTotal * discount.discount_value) / 100;
+          discountAmount = (subTotal * parseFloat(discount.discount_value)) / 100;
         } else {
-          discountAmount = discount.discount_value;
+          discountAmount = parseFloat(discount.discount_value);
         }
         finalTotal = Math.max(0, subTotal - discountAmount);
       }
+    }
+
+    console.log({ subTotal, discountAmount, finalTotal });
+
+    if (isNaN(finalTotal)) {
+        throw new Error('เกิดข้อผิดพลาดในการคำนวณราคาสินค้า');
     }
 
     // 3. ตรวจสอบเงื่อนไข
     if (user.wallet_balance < finalTotal) {
       throw new Error('ยอดเงินใน Wallet ไม่เพียงพอ');
     }
-    // (อาจเพิ่มการเช็คว่าผู้ใช้มีเกมนี้อยู่แล้วหรือไม่)
 
     // 4. ทำการอัปเดตฐานข้อมูล
     // 4.1 ตัดเงินจาก Wallet
     await connection.query('UPDATE Users SET wallet_balance = wallet_balance - ? WHERE user_id = ?', [finalTotal, userId]);
     
-    // 4.2 สร้างใบสั่งซื้อ (Purchases)
-    // สร้างใบสั่งซื้อ (บันทึกราคาก่อนและหลังลด)
+    // 4.2 สร้างใบสั่งซื้อ
     const [purchaseResult] = await connection.query(
       'INSERT INTO Purchases (user_id, sub_total, discount_amount, total_amount, code_id) VALUES (?, ?, ?, ?, ?)', 
       [userId, subTotal, discountAmount, finalTotal, codeId]
     );
     const purchaseId = (purchaseResult as any).insertId;
 
-    // 4.3 เพิ่มรายการเกมในใบสั่งซื้อ (PurchaseItems) และคลังเกม (UserLibrary)
+    // บันทึกว่าผู้ใช้ได้ใช้โค้ดนี้แล้ว และอัปเดตจำนวนการใช้
+    if (codeId) {
+        // บันทึกว่าผู้ใช้ได้ใช้โค้ดนี้แล้ว
+        await connection.query('INSERT INTO CodeUsage (user_id, code_id) VALUES (?, ?)', [userId, codeId]);
+        
+        // เพิ่มจำนวนการใช้โค้ดขึ้น 1
+        await connection.query('UPDATE DiscountCodes SET current_use = current_use + 1 WHERE code_id = ?', [codeId]);
+
+        // ตรวจสอบว่าโค้ดถูกใช้ครบจำนวนหรือยัง
+        const [updatedCodeRows]: any = await connection.query('SELECT current_use, max_use FROM DiscountCodes WHERE code_id = ?', [codeId]);
+        const updatedCode = updatedCodeRows[0];
+
+        if (updatedCode && updatedCode.current_use >= updatedCode.max_use) {
+            console.log(`โค้ด ID: ${codeId} ถูกใช้ครบจำนวนแล้ว กำลังทำการลบ...`);
+            // ถ้าครบแล้ว ให้ลบโค้ดออกจากระบบ
+            // (ต้องลบจากตาราง CodeUsage ก่อน เพราะมี Foreign Key ผูกอยู่)
+            await connection.query('DELETE FROM CodeUsage WHERE code_id = ?', [codeId]);
+            await connection.query('DELETE FROM DiscountCodes WHERE code_id = ?', [codeId]);
+        }
+    }
+
+    // 4.3 เพิ่มรายการเกมในใบสั่งซื้อ, คลังเกม, และอัปเดตยอดขาย
     for (const game of (games as any[])) {
       await connection.query('INSERT INTO PurchaseItems (purchase_id, game_id, item_price) VALUES (?, ?, ?)', [purchaseId, game.game_id, game.price]);
       await connection.query('INSERT INTO UserLibrary (user_id, game_id) VALUES (?, ?)', [userId, game.game_id]);
       await connection.query('UPDATE Games SET sales_count = sales_count + 1 WHERE game_id = ?', [game.game_id]);
     }
 
+    // สร้างข้อความ detail จากชื่อเกมทั้งหมด
+    const gameNamesString = (games as any[]).map(game => `"${game.game_name}"`).join(', ');
+
     // 4.4 บันทึก Transaction
-    await connection.query('INSERT INTO Transactions (user_id, type, amount, detail, purchase_id) VALUES (?, ?, ?, ?, ?)', [userId, 'ซื้อเกม', finalTotal, `ซื้อเกม ${gameIds.length} รายการ`, purchaseId]);
+    await connection.query('INSERT INTO Transactions (user_id, type, amount, detail, purchase_id) VALUES (?, ?, ?, ?, ?)', [userId, 'ซื้อเกม', finalTotal, `ซื้อเกม ${gameNamesString}`, purchaseId]);
 
     // 5. ยืนยัน Transaction
     await connection.commit();
@@ -339,9 +405,61 @@ export const checkout = async (req: Request, res: Response) => {
     res.status(200).json({ message: 'Purchase successful!' });
 
   } catch (error: any) {
-    await connection.rollback();
+    await connection.rollback(); // ย้อนกลับทั้งหมดถ้าเกิดข้อผิดพลาด
+    // **[แก้]** แสดง error.message เพื่อให้รู้สาเหตุที่แท้จริง
+    console.error('Checkout failed in catch block:', error);
     res.status(400).json({ message: error.message || 'Purchase failed.' });
   } finally {
     connection.release();
+  }
+};
+
+export const getMyLibrary = async (req: Request, res: Response) => {
+  const userId = (req as any).user.userId; // ดึง userId จาก Token ที่ผ่านการตรวจสอบแล้ว
+
+  try {
+    // ใช้ SQL JOIN เพื่อดึงข้อมูล "เกม" ทั้งหมดที่ผู้ใช้คนนี้เป็นเจ้าของ
+    const [gamesInLibrary] = await conn.query(
+      `SELECT g.*, gt.type_name 
+       FROM UserLibrary ul
+       JOIN Games g ON ul.game_id = g.game_id
+       JOIN GameType gt ON g.type_id = gt.type_id 
+       WHERE ul.user_id = ?`,
+      [userId]
+    );
+
+    res.status(200).json(gamesInLibrary);
+
+  } catch (error) {
+    console.error('Error fetching user library:', error);
+    res.status(500).json({ message: 'Error fetching user library.' });
+  }
+};
+
+export const getOwnedGameDetail = async (req: Request, res: Response) => {
+  const userId = (req as any).user.userId;
+  const { id: gameId } = req.params; // รับ gameId จาก URL
+
+  try {
+    // **สำคัญ:** Query นี้จะดึงข้อมูลเกมก็ต่อเมื่อมี record อยู่ใน UserLibrary เท่านั้น
+    const [rows]: any = await conn.query(
+      `SELECT g.*, gt.type_name 
+       FROM UserLibrary ul
+       JOIN Games g ON ul.game_id = g.game_id
+       JOIN GameType gt ON g.type_id = gt.type_id
+       WHERE ul.user_id = ? AND ul.game_id = ?`,
+      [userId, gameId]
+    );
+    const game = rows[0];
+
+    if (game) {
+      game.price = parseFloat(game.price);
+      res.status(200).json(game);
+    } else {
+      // ถ้าไม่เจอข้อมูล หมายความว่า user ไม่ใช่เจ้าของเกมนี้ หรือไม่มีเกมนี้อยู่
+      res.status(404).json({ message: 'ไม่พบเกมในคลังของคุณ' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching owned game details.' });
   }
 };

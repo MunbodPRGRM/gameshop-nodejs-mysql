@@ -6,12 +6,15 @@ import { v4 as uuidv4 } from "uuid";
 import { authenticateJWT } from "../middlewares/auth.middleware";
 import {
   getProfile,
-  updateProfile,
+  updateProfileInfo,
   getUserById,
   getMyTransactions,
   topUpWallet,
   checkout,
   buyGame,
+  getMyLibrary,
+  getOwnedGameDetail,
+  changePassword,
 } from "../controllers/user.controller";
 
 export const router = express.Router();
@@ -34,12 +37,15 @@ const upload = multer({
 // === Routes ===
 
 router.get("/profile", authenticateJWT, getProfile);
-router.put("/update", authenticateJWT, upload.single("profile_image"), updateProfile);
+router.put("/update", authenticateJWT, upload.single("profile_image"), updateProfileInfo);
+router.post('/change-password', authenticateJWT, changePassword);
 router.get('/transactions',authenticateJWT, getMyTransactions);
 router.post('/topup',authenticateJWT, topUpWallet);
 router.post('/checkout', authenticateJWT, checkout);
 router.post('/buy', authenticateJWT, buyGame);
+router.get('/library', authenticateJWT, getMyLibrary);
 
 router.get("/:id", getUserById);
+router.get('/library/game/:id', authenticateJWT, getOwnedGameDetail);
 
 export default router;
