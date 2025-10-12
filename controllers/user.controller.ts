@@ -443,10 +443,16 @@ export const getOwnedGameDetail = async (req: Request, res: Response) => {
   try {
     // **สำคัญ:** Query นี้จะดึงข้อมูลเกมก็ต่อเมื่อมี record อยู่ใน UserLibrary เท่านั้น
     const [rows]: any = await conn.query(
-      `SELECT g.*, gt.type_name 
+      `SELECT g.*, gt.type_name, r.sales_rank 
        FROM UserLibrary ul
        JOIN Games g ON ul.game_id = g.game_id
        JOIN GameType gt ON g.type_id = gt.type_id
+       JOIN (
+        SELECT 
+          game_id, 
+          ROW_NUMBER() OVER (ORDER BY sales_count DESC, game_name ASC) as sales_rank
+        FROM Games
+      ) r ON g.game_id = r.game_id
        WHERE ul.user_id = ? AND ul.game_id = ?`,
       [userId, gameId]
     );

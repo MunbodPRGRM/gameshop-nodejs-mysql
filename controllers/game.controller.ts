@@ -295,7 +295,7 @@ export const getBestSellers = async (req: Request, res: Response) => {
     const [bestSellers] = await conn.query(
       `SELECT game_id, game_name, pic_portrait, sales_count 
        FROM Games
-       ORDER BY sales_count DESC
+       ORDER BY sales_count DESC, game_name ASC
        LIMIT 5`
     );
 

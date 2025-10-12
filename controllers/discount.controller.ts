@@ -112,3 +112,21 @@ export const deleteDiscountCode = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'เกิดข้อผิดพลาดในการลบ' });
   }
 };
+
+export const getActiveDiscountCodes = async (req: Request, res: Response) => {
+  try {
+    // ดึงเฉพาะโค้ดที่:
+    // 1. ยังใช้ไม่ครบจำนวน (current_use < max_use)
+    // 2. ยังไม่หมดอายุ (expire_date เป็น NULL หรือยังไม่ถึงวันที่หมดอายุ)
+    const [activeCodes] = await conn.query(
+      `SELECT code_name, discount_value, discount_type 
+       FROM DiscountCodes 
+       WHERE 
+         current_use < max_use AND
+         (expire_date IS NULL OR expire_date >= CURDATE())`
+    );
+    res.status(200).json(activeCodes);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching active discount codes.' });
+  }
+};

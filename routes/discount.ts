@@ -1,11 +1,12 @@
 import express from "express";
 import { authenticateJWT } from "../middlewares/auth.middleware";
-import { createDiscountCode, deleteDiscountCode, getAllDiscountCodes, updateDiscountCode, validateDiscountCode } from "../controllers/discount.controller";
+import { createDiscountCode, deleteDiscountCode, getActiveDiscountCodes, getAllDiscountCodes, updateDiscountCode, validateDiscountCode } from "../controllers/discount.controller";
 
 const router = express.Router();
 
 // POST /validate -> ตรวจสอบโค้ดส่วนลด
 router.post('/validate', authenticateJWT, validateDiscountCode);
+router.get('/active', getActiveDiscountCodes);
 
 // === Discount Code Management Routes ===
 router.get("/", getAllDiscountCodes);
