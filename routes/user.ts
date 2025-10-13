@@ -20,7 +20,7 @@ import {
 export const router = express.Router();
 
 // === จัดการโฟลเดอร์อัปโหลด ===
-const uploadsDir = path.join(process.cwd(), "../uploads");
+const uploadsDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 // === ตั้งค่า multer สำหรับอัปโหลดรูปโปรไฟล์ ===
