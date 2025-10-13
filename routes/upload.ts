@@ -9,7 +9,7 @@ import { uploadFile, getFile } from "../controllers/upload.controller";
 export const router = express.Router();
 
 // สร้างโฟลเดอร์ uploads หากยังไม่มี
-const uploadsDir = path.resolve(__dirname, "../uploads");
+const uploadsDir = path.resolve(process.cwd(), "../uploads");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
