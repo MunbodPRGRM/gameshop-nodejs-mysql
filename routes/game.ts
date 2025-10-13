@@ -9,7 +9,7 @@ import { authenticateJWT } from '../middlewares/auth.middleware';
 export const router = express.Router();
 
 // === กำหนดโฟลเดอร์ uploads ===
-const uploadsDir = path.resolve(process.cwd(), "../uploads");
+const uploadsDir = path.join(process.cwd(), "../uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 // === ตั้งค่า multer ===
